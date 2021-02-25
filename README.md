@@ -1,7 +1,7 @@
 # uplist - basic static file server with upload
 
 <center>
-  ![screencast](./assets/upload-server.gif)
+![screencast](./assets/upload-server.gif)
 </center>
 
 A single-binary HTTP static-file server with a basic upload feature built with
