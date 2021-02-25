@@ -12,7 +12,6 @@ use futures_util::stream::StreamExt;
 use http::status::StatusCode;
 
 use serde::Serialize;
-use serde_json;
 
 use std::convert::Infallible;
 use std::io::Error as IoError;
@@ -22,8 +21,8 @@ use std::process::exit;
 use std::env::args;
 use std::env::current_dir;
 
-const html_index: &'static str = include_str!("./index.html");
-const html_not_found: &'static str = include_str!("./not-found.html");
+const HTML_INDEX: &str = include_str!("./index.html");
+const HTML_NOT_FOUND: &str = include_str!("./not-found.html");
 const DEFAULT_MAX_UPLOAD_SIZE: u64 = 1024 * 1024 * 500;
 const DEFAULT_PORT: u16 = 8000;
 
@@ -37,7 +36,7 @@ async fn main() {
 
     let routes = warp::path::end()
         .or(warp::path("list"))
-            .map(|_| html(html_index))
+            .map(|_| html(HTML_INDEX))
         .or(warp::path!("api" / "upload")
             .and(warp::post())
             .and(form().max_length(max_upload_size))
@@ -51,7 +50,7 @@ async fn main() {
             .and(warp::path("dl"))
             .and(warp::fs::dir(cwd)))
         .recover(|_| async move {
-            Result::<_, Infallible>::Ok(warp::reply::with_status(html_not_found, StatusCode::NOT_FOUND))
+            Result::<_, Infallible>::Ok(warp::reply::with_status(HTML_NOT_FOUND, StatusCode::NOT_FOUND))
         });
 
     println!("Listening on 127.0.0.1:{}", port);
@@ -60,7 +59,7 @@ async fn main() {
         .await;
 }
 
-fn get_arg<'a, T: FromStr + Display>(arg_raw: Option<String>, default: T, program: &'a str) -> T {
+fn get_arg<T: FromStr + Display>(arg_raw: Option<String>, default: T, program: &str) -> T {
     if let Some(arg) = arg_raw {
         if let Ok(size) = arg.parse() { size } else {
             print!(
