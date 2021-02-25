@@ -2,14 +2,18 @@ use warp::serve;
 use warp::Filter;
 use warp::reply::html;
 use warp::Reply;
-use warp::Error;
-use warp::multipart::{FormData, Part, form};
 use tokio::fs::File;
 use tokio::fs::read_dir;
 use tokio_util::io::StreamReader;
-use futures_util::stream::TryStreamExt;
 use futures_util::stream::StreamExt;
 use http::status::StatusCode;
+
+// For multipart
+use bytes::Buf;
+use futures::stream::TryStreamExt;
+use futures::Stream;
+use mime::Mime;
+use mpart_async::server::MultipartStream;
 
 use serde::Serialize;
 
@@ -38,9 +42,9 @@ async fn main() {
         .or(warp::path("list"))
             .map(|_| html(HTML_INDEX))
         .or(warp::path!("api" / "upload")
-            .and(warp::post())
-            .and(form().max_length(max_upload_size))
+            .and(warp::header::<Mime>("content-type"))
             .and(warp::body::content_length_limit(max_upload_size))
+            .and(warp::body::stream())
             .and_then(write_file))
         .or(warp::path!("api" / "list")
             .and_then(list_files))
@@ -75,6 +79,8 @@ OPTIONS
 
   MAX_UPLOAD
     Maximum file upload size in bytes. Defaults to {}MB
+
+Help: You might have provided MAX_UPLOAD before PORT
 ",
                 program,
                 DEFAULT_PORT,
@@ -85,21 +91,26 @@ OPTIONS
     } else { default }
 }
 
-async fn write_file(form_data: FormData) -> Result<impl Reply, Infallible> {
-    let names: Vec<String> = form_data
-        .try_filter_map(process_form_part)
-        .try_collect()
-        .await.unwrap();
-    println!("Uploaded '{}'", names.get(0).unwrap_or(&"no name".to_owned()));
-    Ok(format!("Received {} things successfully", names.len()))
-}
+async fn write_file(
+    mime: Mime,
+    body: impl Stream<Item = Result<impl Buf, warp::Error>> + Unpin,
+) -> Result<impl warp::Reply, Infallible> {
+    let boundary = mime.get_param("boundary").map(|v| v.to_string()).unwrap();
 
-async fn process_form_part(part: Part) -> Result<Option<String>, Error> {
-    let name = part.filename().unwrap().to_owned();
-    let mut file = File::create(name.as_str()).await.unwrap();
-    let mut read_stream = StreamReader::new(part.stream().map(|x| Result::<_, IoError>::Ok(x.unwrap())));
-    tokio::io::copy_buf(&mut read_stream, &mut file).await.unwrap();
-    Ok(Some(name))
+    let mut stream = MultipartStream::new(
+        boundary,
+        body.map_ok(|mut buf| buf.copy_to_bytes(buf.remaining())),
+    );
+
+    while let Ok(Some(field)) = stream.try_next().await {
+        let filename = field.filename().unwrap().to_owned();
+        let mut file = File::create(filename.as_str()).await.unwrap();
+        let mut read_stream = StreamReader::new(field.map(|x| Result::<_, IoError>::Ok(x.unwrap())));
+        tokio::io::copy_buf(&mut read_stream, &mut file).await.unwrap();
+        println!("Uploaded '{}'", filename);
+    }
+
+    Ok("Done")
 }
 
 #[derive(Serialize)]
