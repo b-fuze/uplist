@@ -224,11 +224,26 @@
         font-size: 0.8rem;
       }
 
+      .view-list h2 {
+        text-align: center;
+      }
+
       .file-list {
         display: table;
         border-collapse: collapse;
         min-width: 500px;
         margin-bottom: 4rem;
+      }
+
+      @media (max-width: 500px) {
+        body {
+          width: 100%;
+        }
+
+        .file-list {
+          min-width: auto;
+          width: 100%;
+        }
       }
 
       .file-list > a {
