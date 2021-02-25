@@ -50,7 +50,7 @@ async fn main() {
             .and(warp::path("dl"))
             .and(warp::fs::dir(cwd)))
         .recover(|_| async move {
-            Result::<_, Infallible>::Ok(warp::reply::with_status(HTML_NOT_FOUND, StatusCode::NOT_FOUND))
+            Result::<_, Infallible>::Ok(warp::reply::with_status(warp::reply::html(HTML_NOT_FOUND), StatusCode::NOT_FOUND))
         });
 
     println!("Listening on 127.0.0.1:{}", port);
