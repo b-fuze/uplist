@@ -66,11 +66,11 @@
           const loading = single("h2", listWrap);
           loading.style.display = "block";
 
-          const files = await (await fetch("/api/list")).json();
+          const files = (await (await fetch("/api/list")).json()).filter(file => file.is_file);
           loading.style.display = "none";
           list.innerHTML = "";
           list.append(...files.map(({ name, is_file, size }) => elm(
-            "a" + (is_file ? ".is-file" : ".is-dir"),
+            "a.is-file",
             elm("span.cell", elm("strong", name)),
             elm("span.cell.size", humanBytes(size)),
           )));
