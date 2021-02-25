@@ -1,8 +1,8 @@
 # uplist - basic static file server with upload
 
-<center>
-![screencast](./assets/upload-server.gif)
-</center>
+<p align="center">
+  <img src="https://raw.githubusercontent.com/b-fuze/uplist/master/assets/upload-server.gif" />
+</p>
 
 A single-binary HTTP static-file server with a basic upload feature built with
 [Warp](https://github.com/seanmonstar/warp).
