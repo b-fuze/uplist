@@ -40,6 +40,7 @@
         const viewHooks = new Map;
         const nav = single("nav");
         let maxFileSize = 0;
+        let curPath = location.pathname;
 
         // Get max file size
         fetch("/api/max-size")
@@ -132,17 +133,17 @@
 
         // Utils
         function navigate(path, forceHook = false) {
-          const curView = views.get(location.pathname);
+          const curView = views.get(curPath);
           const newView = views.get(path);
           const hook = viewHooks.get(path);
           const title = newView.dataset.title;
 
           newView.style.display = "block";
           single("title").textContent = title;
-          viewButtons.get(location.pathname).classList.remove("selected");
+          viewButtons.get(curPath).classList.remove("selected");
           viewButtons.get(path).classList.add("selected");
 
-          if (location.pathname === path) {
+          if (curPath === path) {
             if (hook && forceHook) {
               hook(newView);
             }
@@ -154,6 +155,7 @@
             hook(newView);
           }
 
+          curPath = path;
           curView.style.display = "none";
           history.pushState(null, title, path);
         }
