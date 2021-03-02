@@ -3,8 +3,7 @@
   <head>
     <title>Upload files</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <script>
-      "use strict";
+    <script type="module">
       const query = (query, ctx = document) => Array.from(ctx.querySelectorAll(query));
       const single = (queryString, ctx) => query(queryString, ctx)[0] ?? null;
       const elm = (selector = "div", ...items) => {
@@ -34,132 +33,142 @@
         return `${ value } ${ units[0] }`;
       }
 
-      addEventListener("DOMContentLoaded", () => {
-        const views = new Map;
-        const viewButtons = new Map;
-        const viewHooks = new Map;
-        const nav = single("nav");
-        let maxFileSize = 0;
-        let curPath = location.pathname;
+      const views = new Map;
+      const viewButtons = new Map;
+      const viewHooks = new Map;
+      const nav = single("nav");
+      let maxFileSize = 0;
+      let curPath = location.pathname;
 
-        // Get max file size
-        fetch("/api/max-size")
-          .then(r => r.text())
-          .then(sizeRaw => {
-            maxFileSize = parseInt(sizeRaw, 10);
-            single("span", tooLarge).textContent = humanBytes(maxFileSize);
-          });
-
-        // Attach click events to tabs
-        query("a", nav).forEach(anchor => {
-          const { pathname } = new URL(anchor.href);
-          viewButtons.set(pathname, anchor);
-          anchor.addEventListener("click", function(evt) {
-            evt.preventDefault();
-            navigate(pathname);
-          });
-        });
-        query(".view").forEach(view => views.set(view.dataset.path, view));
-
-        // Hook for list view
-        viewHooks.set("/list", async listWrap => {
-          const list = single(".file-list", listWrap);
-          const loading = single("h2", listWrap);
-          loading.style.display = "block";
-
-          const files = (await (await fetch("/api/list")).json()).filter(file => file.is_file);
-          loading.style.display = "none";
-          list.innerHTML = "";
-          list.append(...files.map(({ name, is_file, size }) => elm(
-            "a.is-file",
-            elm("span.cell", elm("strong", name)),
-            elm("span.cell.size", humanBytes(size)),
-          )));
-          files.forEach(({ name }, idx) => list.children[idx].href = "/api/dl/" + name);
+      // Get max file size
+      fetch("/api/max-size")
+        .then(r => r.text())
+        .then(sizeRaw => {
+          maxFileSize = parseInt(sizeRaw, 10);
+          single("span", tooLarge).textContent = humanBytes(maxFileSize);
         });
 
-        // Upload files
-        const form = single("form");
-        const tooLarge = single(".too-large");
-        const fileName = single(".chosen-file");
-        form.addEventListener("submit", async function(e) {
-          e.preventDefault();
-          const [ file ] = this.file_in.files;
+      // Attach click events to tabs
+      query("a", nav).forEach(anchor => {
+        const { pathname } = new URL(anchor.href);
+        viewButtons.set(pathname, anchor);
+        anchor.addEventListener("click", function(evt) {
+          evt.preventDefault();
+          navigate(pathname);
+        });
+      });
+      query(".view").forEach(view => views.set(view.dataset.path, view));
 
-          if (!file) {
-            return;
-          }
+      // Hook for list view
+      viewHooks.set("/list", async listWrap => {
+        const list = single(".file-list", listWrap);
+        const loading = single("h2", listWrap);
+        loading.style.display = "block";
 
-          const body = new FormData;
-          body.append("file", file);
-          const { status } = await fetch("/api/upload", {
-            method: "POST",
-            body,
+        const files = (await (await fetch("/api/list")).json())
+          .filter(file => file.is_file)
+          .sort((a, b) => {
+            a = a.name.toLowerCase();
+            b = b.name.toLowerCase();
+
+            // Sort ascending
+            return a > b
+              ? 1
+              : a === b
+                ? 0
+                : -1;
           });
+        loading.style.display = "none";
+        list.innerHTML = "";
+        list.append(...files.map(({ name, is_file, size }) => elm(
+          "a.is-file",
+          elm("span.cell", elm("strong", name)),
+          elm("span.cell.size", humanBytes(size)),
+        )));
+        files.forEach(({ name }, idx) => list.children[idx].href = "/api/dl/" + name);
+      });
 
-          if (status === 200) {
-            navigate("/list");
-          }
+      // Upload files
+      const form = single("form");
+      const tooLarge = single(".too-large");
+      const fileName = single(".chosen-file");
+      form.addEventListener("submit", async function(e) {
+        e.preventDefault();
+        const [ file ] = this.file_in.files;
+
+        if (!file) {
+          return;
+        }
+
+        const body = new FormData;
+        body.append("file", file);
+        const { status } = await fetch("/api/upload", {
+          method: "POST",
+          body,
         });
 
-        // Enforce max upload file size
-        form.addEventListener("change", function() {
-          const [ file ] = this.file_in.files;
+        if (status === 200) {
+          navigate("/list");
+        }
+      });
 
-          if (file) {
-            if (file.size > maxFileSize) {
-              tooLarge.style.display = "block";
-              fileName.textContent = "";
-              this.reset();
-              return;
-            }
+      // Enforce max upload file size
+      form.addEventListener("change", function() {
+        const [ file ] = this.file_in.files;
 
-            tooLarge.style.display = "none";
-            fileName.textContent = file.name;
+        if (file) {
+          if (file.size > maxFileSize) {
+            tooLarge.style.display = "block";
+            fileName.textContent = "";
+            this.reset();
             return;
           }
 
           tooLarge.style.display = "none";
-          fileName.textContent = "";
-        });
+          fileName.textContent = file.name;
+          return;
+        }
 
-        // Choose file button
-        single(".choose-file").addEventListener("click", () => form.file_in.click());
+        tooLarge.style.display = "none";
+        fileName.textContent = "";
+      });
 
-        // Navigate to home page
-        navigate(location.pathname, true);
-        viewButtons.get(location.pathname).click();
-        addEventListener("popstate", () => navigate(location.pathname));
+      // Choose file button
+      single(".choose-file").addEventListener("click", () => form.file_in.click());
 
-        // Utils
-        function navigate(path, forceHook = false) {
-          const curView = views.get(curPath);
-          const newView = views.get(path);
-          const hook = viewHooks.get(path);
-          const title = newView.dataset.title;
+      // Navigate to home page
+      navigate(location.pathname, true);
+      viewButtons.get(location.pathname).click();
+      addEventListener("popstate", () => navigate(location.pathname));
 
-          newView.style.display = "block";
-          single("title").textContent = title;
-          viewButtons.get(curPath).classList.remove("selected");
-          viewButtons.get(path).classList.add("selected");
+      // Utils
+      function navigate(path, forceHook = false) {
+        const curView = views.get(curPath);
+        const newView = views.get(path);
+        const hook = viewHooks.get(path);
+        const title = newView.dataset.title;
 
-          if (curPath === path) {
-            if (hook && forceHook) {
-              hook(newView);
-            }
+        newView.style.display = "block";
+        single("title").textContent = title;
+        viewButtons.get(curPath).classList.remove("selected");
+        viewButtons.get(path).classList.add("selected");
 
-            return;
-          }
-
-          if (hook) {
+        if (curPath === path) {
+          if (hook && forceHook) {
             hook(newView);
           }
 
-          curPath = path;
-          curView.style.display = "none";
-          history.pushState(null, title, path);
+          return;
         }
-      });
+
+        if (hook) {
+          hook(newView);
+        }
+
+        curPath = path;
+        curView.style.display = "none";
+        history.pushState(null, title, path);
+      }
     </script>
     <style>
       html {
@@ -265,7 +274,7 @@
       }
 
       .file-list .size {
-        width: 5rem;
+        width: 10rem;
         text-align: right;
       }
     </style>
