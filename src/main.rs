@@ -38,12 +38,20 @@ async fn main() {
     let max_upload_size: u64 = get_arg(arguments.next(), DEFAULT_MAX_UPLOAD_SIZE, &program);
     let cwd = current_dir().unwrap().to_str().unwrap().to_owned();
 
+    let upload_handler = warp::path!("api" / "upload")
+        .and(warp::header::<Mime>("content-type"));
+    let upload_handler = if max_upload_size != 0 {
+        upload_handler
+          .and(warp::body::content_length_limit(max_upload_size))
+          .boxed()
+    } else {
+      upload_handler.boxed()
+    };
+
     let routes = warp::path::end()
         .or(warp::path("list"))
             .map(|_| html(HTML_INDEX))
-        .or(warp::path!("api" / "upload")
-            .and(warp::header::<Mime>("content-type"))
-            .and(warp::body::content_length_limit(max_upload_size))
+        .or(upload_handler
             .and(warp::body::stream())
             .and_then(write_file))
         .or(warp::path!("api" / "list")
@@ -78,7 +86,8 @@ OPTIONS
     Port to listen on. Defaults to {}
 
   MAX_UPLOAD
-    Maximum file upload size in bytes. Defaults to {}MB
+    Maximum file upload size in bytes. Defaults to {}MB. Set
+    to zero to disable size requirements.
 
 Help: You might have provided MAX_UPLOAD before PORT
 ",
