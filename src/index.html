@@ -92,45 +92,59 @@
       const form = single("form");
       const tooLarge = single(".too-large");
       const fileName = single(".chosen-file");
+      const uploadStatus = single(".upload-status");
       form.addEventListener("submit", async function(e) {
         e.preventDefault();
-        const [ file ] = this.file_in.files;
+        const files = this.file_in.files;
 
-        if (!file) {
+        if (!files.length) {
           return;
         }
 
-        const body = new FormData;
-        body.append("file", file);
-        const { status } = await fetch("/api/upload", {
-          method: "POST",
-          body,
-        });
+        uploadStatus.style.display = "block";
+        for (const file of files) {
+          uploadStatus.textContent = `Uploading '${file.name}'...`;
+          const body = new FormData;
+          body.append("file", file);
+          const { status } = await fetch("/api/upload", {
+            method: "POST",
+            body,
+          });
 
-        if (status === 200) {
-          navigate("/list");
+          if (status !== 200) {
+            return;
+          }
         }
+
+        uploadStatus.style.removeProperty("display");
+        form.reset();
+        fileName.textContent = "";
+        navigate("/list");
       });
 
       // Enforce max upload file size
       form.addEventListener("change", function() {
-        const [ file ] = this.file_in.files;
+        const files = this.file_in.files;
 
-        if (file) {
-          if (file.size > maxFileSize) {
+        if (!files.length) {
+          tooLarge.style.display = "none";
+          fileName.textContent = "";
+        }
+
+        const validFiles = [];
+        for (const file of files) {
+          if (maxFileSize > 0 && file.size > maxFileSize) {
             tooLarge.style.display = "block";
             fileName.textContent = "";
             this.reset();
             return;
           }
 
-          tooLarge.style.display = "none";
-          fileName.textContent = file.name;
-          return;
+          validFiles.push(file.name);
         }
 
         tooLarge.style.display = "none";
-        fileName.textContent = "";
+        fileName.textContent = validFiles.join(", ");
       });
 
       // Choose file button
@@ -223,7 +237,7 @@
         display: none;
       }
 
-      .too-large {
+      .too-large, .upload-status {
         display: none;
       }
 
@@ -286,12 +300,13 @@
     </nav>
     <div class="view" data-path="/" data-title="Upload files">
       <form>
-        <input type="file" name="file_in">
-        <button type="button" class="choose-file">Choose file...</button>
+        <input type="file" name="file_in" multiple>
+        <button type="button" class="choose-file">Choose files...</button>
         <button type="submit">Upload</button>
         <h4 class="chosen-file"></h4>
       </form>
-      <p class="too-large">File too large, max file size <span></span></p>
+      <p class="too-large">File(s) too large, max file size <span></span></p>
+      <p class="upload-status"></p>
     </div>
     <div class="view view-list" data-path="/list" data-title="List files">
       <em>Right click -> Save As</em>
